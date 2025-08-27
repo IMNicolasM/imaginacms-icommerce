@@ -55,14 +55,20 @@ class ProductApiController extends BaseCrudController
         //Create the product
         $msg = $this->create($request);
       }
+      // Get error message
+      $errorMsg = collect($msg->original["messages"] ?? [])->where('type', 'error')
+          ->map(function ($item) {
+            $decoded = json_decode($item['message'], true);
+            return collect($decoded)->flatten()->implode(', ');
+          })->implode(' - ');
 
       // Check if there is a main image URL (mainImage)
-      if (isset($mainImage) && $mainImage && !isset($msg->original["errors"])) {
+      if (isset($mainImage) && $mainImage && empty($errorMsg)) {
         $data["medias_single"]["mainimage"] = $this->getFileId($mainImage)->id;
       }
 
       // Check if there are multiple image URLs (mediasMulti)
-      if (isset($mediasMulti) && $mediasMulti && !isset($msg->original["errors"])) {
+      if (isset($mediasMulti) && $mediasMulti && empty($errorMsg)) {
         $mediasIds = [];
 
         // Iterate over the multiple image URLs
@@ -78,7 +84,7 @@ class ProductApiController extends BaseCrudController
       }
 
       // Check if there are images (medias_single or medias_multi)
-      if (!isset($msg->original["errors"]) &&
+      if (empty($errorMsg) &&
         ((isset($data["medias_single"]) && isset($data["medias_single"]["mainimage"])) ||
           (isset($data["medias_multi"]) && isset($data["medias_multi"]["gallery"])))) {
         if (!isset($data["id"])) {
@@ -100,10 +106,14 @@ class ProductApiController extends BaseCrudController
 
       //Response
       $response = ["data" => $msg];
+      if(!empty($errorMsg)) {
+        $response = ["errors" => $errorMsg];
+        $status = 400;
+      }
       \DB::commit();//Commit to DataBase
     } catch (\Exception $e) {
       \DB::rollback();//Rollback to Data Base
-      \Log::error($e->getMessage(), $e->getFile(), $e->getLine());
+      \Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'trace' => $e->getTraceAsString()]);
       // TODO: It is necessary to create a service in the media to create a rollback, because when the insertion fails, the images are saved to the disk (This is an improvement because when this service throws an error, the media tries to associate the image if it is uploaded again)
       $status = $this->getStatusError($e->getCode());
       $response = ["errors" => $e->getMessage()];
