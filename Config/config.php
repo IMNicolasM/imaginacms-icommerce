@@ -56,7 +56,8 @@ return [
           'product' => '/icommerce/v3/product-warehouse',
           'product-option' => '/icommerce/v3/product-option-value-warehouse'
         ],
-        "supportedActions" =>  ["import"],
+        "include" => "product,warehouse,productOptionValue",
+        "supportedActions" =>  ["import", "export"],
         'sheetName' => 'Icommerce Product Warehouse',
         'customColumns' => true,
         'dependencies' => [
